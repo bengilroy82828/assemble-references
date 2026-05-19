@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CANDIDATE
+}
+
+enum RequestStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         Role     @default(CANDIDATE)
+  createdAt    DateTime @default(now())
+
+  // 2FA (TOTP) — required for ADMIN role
+  totpSecret           String?  // base32-encoded TOTP shared secret
+  totpEnabled          Boolean  @default(false)
+  backupCodeHashes     String[] @default([]) // bcrypt-hashed single-use backup codes
+
+  referees          ReferenceRequest[] @relation("CandidateRequests")
+  shareLinksCreated ShareLink[]        @relation("ShareLinksCreatedBy")
+}
+
+// A request sent to one referee for one candidate.
+model ReferenceRequest {
+  id          String        @id @default(cuid())
+  token       String        @unique // unguessable token in the referee URL
+  status      RequestStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  sentAt      DateTime?
+  completedAt DateTime?
+  expiresAt   DateTime
+
+  // Reminder tracking
+  lastReminderSentAt DateTime?
+  reminderCount      Int       @default(0)
+
+  // Candidate (who requested the reference)
+  candidate   User   @relation("CandidateRequests", fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId String
+
+  // Snapshot of what candidate told us about the role they are seeking
+  positionAppliedFor String?
+
+  // Referee details (entered by candidate)
+  refereeFullName     String
+  refereeEmail        String
+  refereeRelationship String // e.g. "Direct manager", "Colleague", "Client"
+  refereeOrganisation String?
+  refereePhone        String?
+  candidateRoleTitle  String? // The role the candidate held when working with this referee
+  workedTogetherFrom  String? // free text like "Jan 2021"
+  workedTogetherTo    String? // free text like "Mar 2024" or "Present"
+
+  response   ReferenceResponse?
+  shareLinks ShareLink[]
+}
+
+// The completed reference, submitted by the referee.
+model ReferenceResponse {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  request   ReferenceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId String           @unique
+
+  // Confirmed/edited referee details at time of submission
+  refereeFullName     String
+  refereeEmail        String
+  refereeJobTitle     String?
+  refereeOrganisation String?
+  refereePhone        String?
+
+  // Relationship & period
+  relationship          String
+  capacityKnown         String // free text — in what capacity they worked with the candidate
+  durationKnown         String // how long they have known the candidate
+  contactFrequency      String // how often they were in contact
+
+  // Performance & character (long-form text)
+  rolesAndDuties        String
+  strengths             String
+  areasForImprovement   String
+  workQuality           String
+  reliabilityComments   String
+  teamworkComments      String
+  leadershipComments    String?
+  stressResponseComments String
+
+  // Defence-suitability character questions (no clearance numbers)
+  honestyIntegrity         String
+  trustworthiness          String
+  discretionConfidentiality String
+  loyaltyAllegiance         String // loyalty to Australia / employer
+  financialResponsibility   String
+  substanceConcerns         String // any concerns re alcohol/drugs
+  legalConcerns             String // any known criminal / police involvement
+  foreignInfluenceConcerns  String // any foreign contacts/influence concerns
+  vulnerabilitiesConcerns   String // anything that could leave them open to coercion
+
+  // Overall
+  wouldRehire            String // Yes / No / Unsure + comments
+  recommendForTrustedRole String // Yes / No / Unsure + comments
+  additionalComments      String?
+
+  // Declaration
+  declarationTrue   Boolean
+  declarationConsent Boolean
+  signedName        String
+  submittedFromIp   String?
+  submittedAt       DateTime @default(now())
+}
+
+// A token-based read-only link an admin can send to a hiring manager.
+model ShareLink {
+  id             String   @id @default(cuid())
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  recipientLabel String?  // e.g. "HR @ ACME Defence"
+  recipientEmail String?
+  viewCount      Int      @default(0)
+  lastViewedAt   DateTime?
+
+  request     ReferenceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId   String
+  createdBy   User             @relation("ShareLinksCreatedBy", fields: [createdById], references: [id])
+  createdById String
+}
