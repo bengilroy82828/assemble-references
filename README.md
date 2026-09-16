@@ -1,3 +1,26 @@
+> # SUPERSEDED, 17 September 2026
+>
+> **This app is not in use and is not maintained. Do not deploy it, and do not build on it.**
+>
+> Reference checking was rebuilt inside the Assemble Vincere connector on **14 September
+> 2026** and lives at `/cockpit/refs`, with the public referee pages at `/r/*`, on the App
+> Service `assemble-vincere` in `rg-assemble-vincere-prod`. That version sits behind the same
+> Entra sign-in as the rest of the operating system, keeps its data next to the candidate
+> record it belongs to, and needs no separate database, mail provider or hosting account.
+>
+> This repository is kept as a record of the design: the reference form's wording, the
+> defence rule that it never asks for a clearance number, the referee token flow and the
+> PDF layout all started here and were carried across. **The code is not the record, the
+> form design is.**
+>
+> One thing did not carry across: the connector version cannot send its own email yet, so it
+> stages an outbox rather than sending. That is a Microsoft Graph `Mail.Send` permission
+> decision, not a reason to revive this app.
+>
+> Everything below this line describes the retired app and is left unchanged.
+
+---
+
 # Assemble Solutions — Reference Check App
 
 An internal web app where candidates nominate referees, the referees receive an
